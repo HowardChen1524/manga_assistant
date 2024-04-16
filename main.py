@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import undetected_chromedriver as uc
+from seleniumbase import Driver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -41,16 +41,17 @@ def handle_message(event):
         username = 'howard022619@gmail.com'
         password = '1234567890'
         
-        driver = uc.Chrome(headless=True, service_args=["--verbose", "--log-path=cd.log"])
+        # driver = uc.Chrome(headless=True, service_args=["--verbose", "--log-path=cd.log"])
+        # driver = uc.Chrome()
+        driver = Driver(uc=True, headless=True)
         wait = WebDriverWait(driver, 10)
         print("========== driver open ==========")
         login_url = os.path.join(base_url, 'user/login')
         driver.get(login_url)
-        print(driver.page_source)
-        driver.save_screenshot('my_screenshot.png')
-        driver.close()
+        # print(driver.page_source)
+        # driver.save_screenshot('my_screenshot.png')
+        # driver.close()
 
-        '''
         driver.find_element(By.ID, 'email').send_keys(username)
         driver.find_element(By.ID, 'password').send_keys(password)
 
@@ -61,6 +62,22 @@ def handle_message(event):
         bookcase_url = os.path.join(base_url, 'bookcase')
         driver.get(bookcase_url)
         wait.until(EC.url_changes(base_url))
+
+        last_height = driver.execute_script("return document.body.scrollHeight")
+
+        while True:
+            # 滚动到底部
+            print('a')
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            
+            # 等待页面加载
+            time.sleep(5)  # 根据实际情况调整等待时间
+            
+            # 计算新的滚动高度并比较与上次滚动后的高度
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height:
+                break
+            last_height = new_height
 
         booklist = wait.until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'div.booklist#books'))
@@ -88,6 +105,6 @@ def handle_message(event):
 
         reply_message = TextSendMessage(text=manga_info_str)
         line_bot_api.reply_message(event.reply_token, reply_message)
-        '''
+
 if __name__ == "__main__":
     app.run()
