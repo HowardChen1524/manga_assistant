@@ -1,15 +1,17 @@
 from seleniumbase import Driver
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import os
 import json
 
 
-
-class ComicInfomation():
+''' 
+TODO: Concept flow
+1. Get spec comic info
+2. Add to database
+3. Get database comic
+4. For each comic, check update status
+5. if update, insert to reply list
+'''
+class ComicInformation():
     def __init__(self, url):
         self.base_url = ''.join(url.split('/')[:-2])
         self.code = url.split('/')[-1]
@@ -36,7 +38,8 @@ class ComicInfomation():
     
     def show_info(self):
         return "漫畫名: {}, 評分: {}, 最近更新: {}".format(self.name, self.score, self.latest_ch_name)
+        
 if __name__ == "__main__":
-    comic_url = 'https://m.happymh.com/manga/lanxiang'
-    comic = ComicInfomation(comic_url)
+    ex_url = 'https://m.happymh.com/manga/lanxiang'
+    comic = ComicInformation(ex_url)
     print(comic.show_info())
