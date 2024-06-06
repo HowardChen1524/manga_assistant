@@ -10,6 +10,7 @@ from linebot.v3.messaging import (
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
+    PushMessageRequest,
     TextMessage
 )
 from linebot.v3.webhooks import (
@@ -24,6 +25,12 @@ from selenium.webdriver.common.by import By
 import json
 
 from collections import defaultdict
+import uuid
+import schedule
+import time
+import threading
+
+# 檢查是否為嗨皮網域
 def is_valid_url_from_domain(url, domain='https://m.happymh.com'):
     try:
         # 解析 URL
@@ -36,8 +43,10 @@ def is_valid_url_from_domain(url, domain='https://m.happymh.com'):
             return False
     except ValueError:
         # 如果 URL 格式錯誤，urlparse 可能會拋出 ValueError
+        print("Not a valid URL")
         return False
 
+# 爬取指定漫畫資訊
 def get_info(url):
     driver = Driver(uc=True, headless=True)
     driver.get(url)
@@ -59,6 +68,27 @@ def get_info(url):
             continue 
     driver.quit()   
     return info
+
+# 自動推送消息
+def scheduled_push_message():
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        push_message_request = PushMessageRequest(
+            to='U7289855991510d22bf38ea427a834c86',  # 替換為實際的接收者 ID
+            messages=[TextMessage(text='Hello')]
+        )
+        x_line_retry_key = str(uuid.uuid4())
+        try:
+            response = line_bot_api.push_message(push_message_request, x_line_retry_key)
+            print("Push message response:", response)
+        except Exception as e:
+            print("Exception when sending push message:", e)
+
+# 啟動 schedule 的函式
+def run_schedule():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
 # 初始化 Flask 應用和 LINE Bot API
 app = Flask(__name__)
@@ -88,12 +118,17 @@ def callback():
 def handle_message(event):
     with ApiClient(configuration) as api_client:
         text = event.message.text
+
+        # 若輸入內容是嗨皮漫畫網址，則新增漫畫資訊
         if is_valid_url_from_domain(text):
             comic_info = get_info(text)
             db = MyDatabase()
             status_msg = db.insert_data(comic_info)
+        elif text == "Test":
+            status_msg = "Test"
+        # 將訊息回傳
         line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message_with_http_info(
+        line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=status_msg)]
@@ -101,4 +136,10 @@ def handle_message(event):
         )
 
 if __name__ == "__main__":
+    # 設置定時任務每天在指定時間推送消息
+    schedule.every().day.at("01:27").do(scheduled_push_message)  # 這裡的時間可以根據需要修改
+
+    # 在另一個執行緒中運行 schedule
+    threading.Thread(target=run_schedule).start()
     app.run()
+
