@@ -1,5 +1,5 @@
 import pyodbc
-from collections import defaultdict
+
 class MyDatabase:
     def __init__(self):
         self.conn = None
@@ -29,7 +29,7 @@ class MyDatabase:
 
     def get_all_comic_code(self):
         try:
-            query = "SELECT comic_code FROM Comics;"
+            query = "SELECT code FROM Manga;"
             self.cursor.execute(query)
             comic_codes = [row[0] for row in self.cursor.fetchall()]
             return comic_codes
@@ -37,70 +37,66 @@ class MyDatabase:
             print("Error occurred while fetching comic codes:", e)
             return []
 
+    def get_track_comic_code(self):
+        try:
+            query = "SELECT code FROM Manga WHERE track=TRUE;"
+            self.cursor.execute(query)
+            comic_codes = [row[0] for row in self.cursor.fetchall()]
+            return comic_codes
+        except Exception as e:
+            print("Error occurred while fetching comic codes:", e)
+            return []
+        
     def insert_data(self, info):
         try:
-            # Insert data into Comics table
-            insert_comics_query = "INSERT INTO Comics (comic_code, comic_name, comic_score) VALUES (?, ?, ?);"
-            self.cursor.execute(insert_comics_query, (info['code'], info['name'], info['score']))
-            self.conn.commit()
-
-            # Get the last inserted comic ID
-            comic_id = self.cursor.execute("SELECT LAST_INSERT_ID();").fetchone()[0]
-
-            # Insert data into Updates table
-            insert_updates_query = "INSERT INTO Updates (chapter_code, chapter_name, comic_id) VALUES (?, ?, ?);"
-            self.cursor.execute(insert_updates_query, (info['latest_ch_code'], info['latest_ch_name'], comic_id))
+            # Insert data into Manga table
+            insert_query = "INSERT INTO Manga (code, name, score, latest_ch_code, latest_ch_name) VALUES (?, ?, ?, ?, ?);"
+            self.cursor.execute(insert_query, (info['code'], info['name'], info['score'], info['latest_ch_code'], info['latest_ch_name']))
             self.conn.commit()
             return "=====Data inserted successfully=====\n漫畫名: {}\n評分: {}\n最近更新: {}".format(info['name'], info['score'], info['latest_ch_name'])
         except Exception as e:
             return f"Error occurred while inserting data: {e}"
-        
+
     def delete_comic_instances(self, comic_id):
         try:
-            # Delete entries in Updates table
-            delete_updates_query = "DELETE FROM Updates WHERE comic_id = ?;"
-            self.cursor.execute(delete_updates_query, (comic_id,))
+            # Delete entry in Manga table
+            delete_query = "DELETE FROM Manga WHERE id = ?;"
+            self.cursor.execute(delete_query, (comic_id,))
             self.conn.commit()
-
-            # Delete entry in Comics table
-            delete_comics_query = "DELETE FROM Comics WHERE id = ?;"
-            self.cursor.execute(delete_comics_query, (comic_id,))
-            self.conn.commit()
-            print(f"Deleted all instances of comic ID {comic_id} from Comics and Updates tables.")
+            print(f"Deleted comic ID {comic_id} from Manga table.")
         except Exception as e:
             print("Error occurred while deleting comic instances:", e)
     
     def check_comic_update(self, comic_code, new_chapter_code, new_chapter_name):
+        msg = ''
         try:
             # Check the last chapter code stored in database
-            query = "SELECT c.id, u.chapter_code, u.chapter_name FROM Updates u JOIN Comics c ON u.comic_id = c.id WHERE c.comic_code = ? ORDER BY u.id DESC LIMIT 1;"
+            query = "SELECT id, name, latest_ch_code, latest_ch_name FROM Manga WHERE code = ?;"
             self.cursor.execute(query, (comic_code,))
-            comic_id, last_chapter_code, last_chapter_name = self.cursor.fetchone()
-            if last_chapter_code != new_chapter_code:
-                print("New update available for comic", comic_code)
-                self.update_comic_chapter(comic_id, last_chapter_code, last_chapter_name, new_chapter_code, new_chapter_name)
-                return True
-            else:
-                print("No new updates for comic", comic_code)
-                return False
+            row = self.cursor.fetchone()
+            print(row)
+            if row:
+                comic_id, comic_name, latest_chapter_code, latest_chapter_name = row
+                if latest_chapter_code != new_chapter_code:
+                    self.update_comic_chapter(comic_id, comic_name, latest_chapter_code, latest_chapter_name, new_chapter_code, new_chapter_name)
+                    msg = f"[{comic_name}]: {new_chapter_name}\nhttps://m.happymh.com/reads/{comic_code}/{new_chapter_code}"
+                else:
+                    print(f"No updates for {comic_name}")
+            return msg
         except Exception as e:
             print("Error occurred while checking comic updates:", e)
-            return False
+            return msg
 
-    def update_comic_chapter(self, comic_id, old_chapter_code, old_chapter_name, new_chapter_code, new_chapter_name):
+    def update_comic_chapter(self, comic_id, comic_name, old_chapter_code, old_chapter_name, new_chapter_code, new_chapter_name):
         try:
-            # Update chapter information in the Updates table
-            update_query = "UPDATE Updates SET chapter_code = ?, chapter_name = ? WHERE comic_id = ?;"
+            # Update chapter information in the Manga table
+            update_query = "UPDATE Manga SET latest_ch_code = ?, latest_ch_name = ? WHERE id = ?;"
             self.cursor.execute(update_query, (new_chapter_code, new_chapter_name, comic_id))
             self.conn.commit()
-            print(f"Updated comic ID {comic_id} with code {old_chapter_code} -> {new_chapter_code} and name {old_chapter_name} -> {new_chapter_name}.")
+            print(f"Updated {comic_name}: {old_chapter_code} -> {new_chapter_code} and {old_chapter_name} -> {new_chapter_name}.")
         except Exception as e:
             print("Error occurred while updating comic chapter:", e)
 
 
 if __name__ == "__main__":
-    available_drivers = pyodbc.drivers()
-    print("Available ODBC drivers:")
-    for driver in available_drivers:
-        print(driver)
     pass

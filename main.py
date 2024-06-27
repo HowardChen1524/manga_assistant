@@ -60,29 +60,48 @@ def get_info(url):
             if "serie_name" in data:
                 info['name'] = data["serie_name"]
             
-            if "praiseForm" in data:
+            if "limitList" in data:
                 info['score'] = data['score']
-                info['latest_ch_id'] = data['limitList'][0]['id']
+                print(data['limitList'])
+                info['latest_ch_code'] = data['limitList'][0]['id']
                 info['latest_ch_name'] = data['limitList'][0]['chapterName']
         except json.JSONDecodeError:
             continue 
-    driver.quit()   
+    driver.quit()
     return info
+
+def daily_check_update():
+    msg = "=====本日更新=====\n"
+    db = MyDatabase()
+    db.open_connection()
+    comic_codes = db.get_track_comic_code()
+    if comic_codes:
+        for code in comic_codes:
+            print(f"https://m.happymh.com/manga/{code}")
+            new_info = get_info(f'https://m.happymh.com/manga/{code}')
+            msg += db.check_comic_update(new_info['code'], new_info['latest_ch_code'], new_info['latest_ch_name'])
+            time.sleep(1)
+    else:
+        print("No tracked manga.")
+    db.close_connection()
+    return msg
 
 # 自動推送消息
 def scheduled_push_message():
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        push_message_request = PushMessageRequest(
-            to='U7289855991510d22bf38ea427a834c86',  # 替換為實際的接收者 ID
-            messages=[TextMessage(text='Hello')]
-        )
-        x_line_retry_key = str(uuid.uuid4())
-        try:
-            response = line_bot_api.push_message(push_message_request, x_line_retry_key)
-            print("Push message response:", response)
-        except Exception as e:
-            print("Exception when sending push message:", e)
+    push_msg = daily_check_update()
+    if push_msg:
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            push_message_request = PushMessageRequest(
+                to='U7289855991510d22bf38ea427a834c86',  # 替換為實際的接收者 ID
+                messages=[TextMessage(text=push_msg)]
+            )
+            x_line_retry_key = str(uuid.uuid4())
+            try:
+                response = line_bot_api.push_message(push_message_request, x_line_retry_key)
+                print("Push message response:", response)
+            except Exception as e:
+                print("Exception when sending push message:", e)
 
 # 啟動 schedule 的函式
 def run_schedule():
@@ -118,26 +137,25 @@ def callback():
 def handle_message(event):
     with ApiClient(configuration) as api_client:
         text = event.message.text
-
         # 若輸入內容是嗨皮漫畫網址，則新增漫畫資訊
         if is_valid_url_from_domain(text):
             comic_info = get_info(text)
             db = MyDatabase()
-            status_msg = db.insert_data(comic_info)
+            reply_msg = db.insert_data(comic_info)
         elif text == "Test":
-            status_msg = "Test"
+            reply_msg = "Test"
         # 將訊息回傳
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=status_msg)]
+                messages=[TextMessage(text=reply_msg)]
             )
         )
 
 if __name__ == "__main__":
     # 設置定時任務每天在指定時間推送消息
-    schedule.every().day.at("01:27").do(scheduled_push_message)  # 這裡的時間可以根據需要修改
+    schedule.every().day.at("22:00").do(scheduled_push_message)  # 這裡的時間可以根據需要修改
 
     # 在另一個執行緒中運行 schedule
     threading.Thread(target=run_schedule).start()

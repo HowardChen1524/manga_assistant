@@ -127,7 +127,6 @@ def get_info(url):
     info['code'] = url.split('/')[-1]
     for script_tag in script_tags:
         json_text = script_tag.get_attribute('textContent')
-        # print(json_text)
         try:
             data = json.loads(json_text)
             if "serie_name" in data:
@@ -143,31 +142,29 @@ def get_info(url):
     return info
 
 def sim_add_book(text):
+    reply_msg = None
     if is_valid_url_from_domain(text):
         comic_info = get_info(text)
         db = MyDatabase()
-        db.open_connection()
-        try:
-            status_msg = db.insert_data(comic_info)
-            print(status_msg)
-        except Exception as e:
-            print("Error occurred while inserting book:", e)
-        finally:
-            db.close_connection()
+        reply_msg = db.insert_data(comic_info)
     else:
-        print("Wrong URL")
+        reply_msg = "Wrong URL"
+    print(reply_msg)
     
 def sim_check_update():
     db = MyDatabase()
     db.open_connection()
     try:
-        comic_codes = db.get_all_comic_code()
-        for code in comic_codes:
-            print(f"https://m.happymh.com/manga/{code}")
-            new_info = get_info(f'https://m.happymh.com/manga/{code}')
-            # print(new_info)
-            db.check_comic_update(new_info['code'], new_info['latest_ch_code'], new_info['latest_ch_name'])
-            time.sleep(1)
+        comic_codes = db.get_track_comic_code()
+        if comic_codes:
+            for code in comic_codes:
+                print(f"https://m.happymh.com/manga/{code}")
+                new_info = get_info(f'https://m.happymh.com/manga/{code}')
+                # print(new_info)
+                db.check_comic_update(new_info['code'], new_info['latest_ch_code'], new_info['latest_ch_name'])
+                time.sleep(1)
+        else:
+            print("No tracked manga.")
     except Exception as e:
         print("Error occurred while checking updates:", e)
     finally:
